@@ -9,7 +9,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.phoebus.framework.preferences.PreferencesReader;
+import org.phoebus.applications.alarm.logging.ui.Preferences;
 import org.phoebus.framework.spi.AppInstance;
 import org.phoebus.framework.spi.AppResourceDescriptor;
 import org.phoebus.ui.javafx.ImageCache;
@@ -28,7 +28,6 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
 
     private RestHighLevelClient client;
     private Sniffer sniffer;
-    private PreferencesReader prefs;
 
     @Override
     public String getName() {
@@ -58,17 +57,16 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
 
     @Override
     public void start() {
-        prefs = new PreferencesReader(AlarmLogTableApp.class, "/alarm_logging_preferences.properties");
         try {
             client = new RestHighLevelClient(
-                    RestClient.builder(new HttpHost(prefs.get("es_host"), Integer.valueOf(prefs.get("es_port")))));
-            if (prefs.get("es_sniff").equals("true")) {
+                    RestClient.builder(new HttpHost(Preferences.es_host, Preferences.es_port)));
+            if (Preferences.es_sniff) {
                 sniffer = Sniffer.builder(client.getLowLevelClient()).build();
                 logger.log(Level.INFO, "ES Sniff feature is enabled");
             }
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Failed to properly create the elastic rest client to: " + prefs.get("es_host")
-                    + ":" + prefs.get("es_port"), e);
+            logger.log(Level.WARNING, "Failed to properly create the elastic rest client to: " + Preferences.es_host
+                    + ":" + Preferences.es_port, e);
         }
 
     }
