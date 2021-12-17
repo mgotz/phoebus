@@ -179,6 +179,16 @@ public class AlarmLogTableController {
                 });
         tableView.getColumns().add(messageCol);
 
+        valueCol = new TableColumn<>("Value");
+        valueCol.setCellValueFactory(
+                new Callback<CellDataFeatures<AlarmLogTableType, String>, ObservableValue<String>>() {
+                    @Override
+                    public ObservableValue<String> call(CellDataFeatures<AlarmLogTableType, String> alarmMessage) {
+                        return new SimpleStringProperty(alarmMessage.getValue().getValue());
+                    }
+                });
+        tableView.getColumns().add(valueCol);
+
         timeCol = new TableColumn<>("Time");
         timeCol.setCellValueFactory(
                 new Callback<CellDataFeatures<AlarmLogTableType, String>, ObservableValue<String>>() {
