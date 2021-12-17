@@ -23,6 +23,7 @@ import javafx.util.Callback;
 import javafx.util.Duration;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.phoebus.applications.alarm.logging.ui.AlarmLogTableQueryUtil.Keys;
+import org.phoebus.applications.alarm.logging.ui.Preferences;
 import org.phoebus.applications.alarm.model.SeverityLevel;
 import org.phoebus.applications.alarm.ui.AlarmUI;
 import org.phoebus.framework.jobs.Job;
@@ -221,7 +222,6 @@ public class AlarmLogTableController {
                     return new SimpleStringProperty(delta.toHours() + ":" + delta.toMinutesPart() + ":" + delta.toSecondsPart()
                             + "." + delta.toMillisPart());
                 });
-        deltaTimeCol.setVisible(false);
         tableView.getColumns().add(deltaTimeCol);
 
         currentSeverityCol = new TableColumn<>("Current Severity");
@@ -304,6 +304,8 @@ public class AlarmLogTableController {
         tableView.getColumns().add(hostCol);
         tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
+        setColVisibility();
+
         searchParameters.put(Keys.PV, this.searchString);
         searchParameters.put(Keys.MESSAGE, "*");
         searchParameters.put(Keys.SEVERITY, "*");
@@ -346,6 +348,14 @@ public class AlarmLogTableController {
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> runningTask;
+
+    private void setColVisibility() {
+        for(TableColumn<AlarmLogTableType, ?> col : tableView.getColumns().filtered(
+            col -> Arrays.asList(Preferences.hidden_columns).contains(col.getText()))) {
+            col.setVisible(false);
+            logger.fine("hiding column " + col.getText());
+        }
+    }
 
     private void periodicSearch() {
         logger.info("Starting a periodic search for alarm messages : " + searchString);
