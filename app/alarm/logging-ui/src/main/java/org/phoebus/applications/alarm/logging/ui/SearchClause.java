@@ -188,7 +188,6 @@ public class SearchClause {
     private static final Set<Character> luceneSpecial =
         Set.of('\\', '+', '-', '!', '(', ')', ':', '^', '[', ']', '\"', '{',  '}', '~', '|', '&', '/', ' ');
 
-
     private static String escape(String s, Set<Character> toEscape) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
@@ -218,6 +217,22 @@ public class SearchClause {
         return escape(s, escapeWildcards, new HashSet<Character>());
     }
 
+    private static String unescape(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+
+            if (c == '\\') {
+                if (luceneSpecial.contains(s.charAt(i+1))) {
+                    c = s.charAt(i+1);
+                    i++;
+                }
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
     public static SearchClause fromLuceneClause(BooleanClause luceneClause) throws QueryNotSupported {
         Negation occur;
         try {
@@ -243,7 +258,7 @@ public class SearchClause {
         else if (query instanceof WildcardQuery) {
             var q = (WildcardQuery) query;
             fieldName = q.getTerm().field();
-            term1 = q.getTerm().text();
+            term1 = unescape(q.getTerm().text());
             term2 = "";
             wildcardLiteral = false;
         }

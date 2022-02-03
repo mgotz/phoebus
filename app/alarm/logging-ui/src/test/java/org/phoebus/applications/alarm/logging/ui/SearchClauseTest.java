@@ -181,6 +181,8 @@ public class SearchClauseTest {
         refList.add(new SearchClause(is, "field1", "MINOR"));
         refList.add(new SearchClause(is, "field2", "prod:*"));
         refList.add(new SearchClause(is, "field2", "test:*"));
+        // for wildcard queries (* at end is a prefix query), escaping is not removed by the lucene parser
+        refList.add(new SearchClause(is, "testField", "/wildcard*:with&specials*"));
 
         final String queryString = SearchClause.listToQuery(refList);
 
