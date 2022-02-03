@@ -41,9 +41,9 @@ public class ContextMenuPVAlarmHistory implements ContextMenuEntry {
         selection.getSelections().stream().forEach(s -> {
             AdapterService.adapt(s, ProcessVariable.class).ifPresent(selectedPvs::add);
         });
-        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME);
-        URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "", "pv="+selectedPvs.stream().map(ProcessVariable::getName).collect(Collectors.joining(",")), "");
-        table.setPVResource(uri);
+        URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "",
+            selectedPvs.stream().map(ProcessVariable::getName).collect(Collectors.joining("&pv=","pv=","")), "");
+        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
     }
 
     @Override

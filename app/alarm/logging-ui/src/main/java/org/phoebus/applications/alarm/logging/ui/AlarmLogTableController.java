@@ -18,9 +18,14 @@ import javafx.scene.control.TableColumn.SortType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.util.Callback;
 import javafx.util.Duration;
+
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.phoebus.applications.alarm.logging.ui.AlarmLogTableQueryUtil.Keys;
 import org.phoebus.applications.alarm.logging.ui.Preferences;
@@ -36,6 +41,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -55,7 +61,7 @@ public class AlarmLogTableController {
     @FXML
     TableView<AlarmLogTableType> tableView;
     @FXML
-    private AdvancedSearchViewController advancedSearchViewController;
+    private QueryBuilderController queryBuilderController;
     @FXML
     TableColumn<AlarmLogTableType, String> configCol;
     @FXML
@@ -100,12 +106,9 @@ public class AlarmLogTableController {
     TextField endTime;
     TableColumn<AlarmLogTableType, String> sortTableCol = null;
     SortType sortColType = null;
-    // Search parameters
-    ObservableMap<Keys, String> searchParameters = FXCollections.<Keys, String>observableHashMap();
-    // The search string
-    // TODO need to standardize the search string so that it can be easily parsed
-    private String searchString = "*";
-    private Boolean isNodeTable = true;
+
+    // The query_string for the elastic search query
+    private String searchString = AlarmLogTableQueryUtil.defaultField + ":*";
     // Result
     private List<AlarmLogTableType> alarmMessages;
 
@@ -115,9 +118,11 @@ public class AlarmLogTableController {
     @FXML
     private ProgressIndicator progressIndicator;
     private SimpleBooleanProperty searchInProgress = new SimpleBooleanProperty(false);
+    private SimpleBooleanProperty searchStringOkay = new SimpleBooleanProperty(true);
 
-    public AlarmLogTableController(RestHighLevelClient client) {
+    public AlarmLogTableController(RestHighLevelClient client, String searchString) {
         setClient(client);
+        setSearchString(searchString);
     }
 
     @FXML
@@ -306,26 +311,7 @@ public class AlarmLogTableController {
 
         setColVisibility();
 
-        searchParameters.put(Keys.PV, this.searchString);
-        searchParameters.put(Keys.MESSAGE, "*");
-        searchParameters.put(Keys.SEVERITY, "*");
-        searchParameters.put(Keys.CURRENTSEVERITY, "*");
-        searchParameters.put(Keys.CURRENTMESSAGE, "*");
-        searchParameters.put(Keys.COMMAND, "*");
-        searchParameters.put(Keys.USER, "*");
-        searchParameters.put(Keys.HOST, "*");
-        searchParameters.put(Keys.STARTTIME, TimeParser.format(java.time.Duration.ofDays(7)));
-        searchParameters.put(Keys.ENDTIME, TimeParser.format(java.time.Duration.ZERO));
-        advancedSearchViewController.setSearchParameters(searchParameters);
-
-        query.setText(searchParameters.entrySet().stream().sorted(Map.Entry.comparingByKey()).map((e) -> {
-            return e.getKey().getName().trim() + "=" + e.getValue().trim();
-        }).collect(Collectors.joining("&")));
-
-        searchParameters.addListener((MapChangeListener<Keys, String>) change -> query.setText(searchParameters.entrySet().stream()
-                .sorted(Entry.comparingByKey())
-                .map((e) -> e.getKey().getName().trim() + "=" + e.getValue().trim())
-                .collect(Collectors.joining("&"))));
+        query.setText(searchString);
 
         query.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
@@ -342,7 +328,7 @@ public class AlarmLogTableController {
         });
 
         search.disableProperty().bind(searchInProgress);
-
+        search();
         periodicSearch();
     }
 
@@ -372,7 +358,7 @@ public class AlarmLogTableController {
                 sortTableCol = (TableColumn) tableView.getSortOrder().get(0);
                 sortColType = sortTableCol.getSortType();
             }
-            alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString, isNodeTable, searchParameters,
+            alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString,
                     result -> Platform.runLater(() -> {
                         setAlarmMessages(result);
                         searchInProgress.set(false);
@@ -385,30 +371,40 @@ public class AlarmLogTableController {
     }
 
     public void setSearchString(String searchString) {
-        this.searchString = searchString;
-    }
-
-    public void setIsNodeTable(Boolean isNodeTable) {
-        this.isNodeTable = isNodeTable;
-        if (isNodeTable == false) {
-            searchParameters.put(Keys.PV, this.searchString);
-        } else {
-            searchParameters.put(Keys.PV, "*");
+        try {
+            QueryParser luceneParser = new QueryParser(AlarmLogTableQueryUtil.defaultField, new KeywordAnalyzer());
+            luceneParser.setAllowLeadingWildcard(true);
+            luceneParser.parse(searchString);
+            this.searchString = searchString;
+            searchStringOkay.set(true);
         }
-        searchParameters.put(Keys.MESSAGE, "*");
-        searchParameters.put(Keys.SEVERITY, "*");
-        searchParameters.put(Keys.CURRENTSEVERITY, "*");
-        searchParameters.put(Keys.CURRENTMESSAGE, "*");
-        searchParameters.put(Keys.COMMAND, "*");
-        searchParameters.put(Keys.USER, "*");
-        searchParameters.put(Keys.HOST, "*");
-        searchParameters.put(Keys.STARTTIME, TimeParser.format(java.time.Duration.ofDays(7)));
-        searchParameters.put(Keys.ENDTIME, TimeParser.format(java.time.Duration.ZERO));
-
-        query.setText(searchParameters.entrySet().stream().sorted(Map.Entry.comparingByKey()).map((e) -> {
-            return e.getKey().getName().trim() + "=" + e.getValue().trim();
-        }).collect(Collectors.joining("&")));
+        catch (ParseException e) {
+            System.out.println("invalid query string: " + e.getMessage());
+            searchStringOkay.set(false);
+        }
     }
+
+    // public void setIsNodeTable(Boolean isNodeTable) {
+    //     this.isNodeTable = isNodeTable;
+    //     if (isNodeTable == false) {
+    //         searchParameters.put(Keys.PV, this.searchString);
+    //     } else {
+    //         searchParameters.put(Keys.PV, "*");
+    //     }
+    //     searchParameters.put(Keys.MESSAGE, "*");
+    //     searchParameters.put(Keys.SEVERITY, "*");
+    //     searchParameters.put(Keys.CURRENTSEVERITY, "*");
+    //     searchParameters.put(Keys.CURRENTMESSAGE, "*");
+    //     searchParameters.put(Keys.COMMAND, "*");
+    //     searchParameters.put(Keys.USER, "*");
+    //     searchParameters.put(Keys.HOST, "*");
+    //     searchParameters.put(Keys.STARTTIME, TimeParser.format(java.time.Duration.ofDays(7)));
+    //     searchParameters.put(Keys.ENDTIME, TimeParser.format(java.time.Duration.ZERO));
+
+    //     query.setText(searchParameters.entrySet().stream().sorted(Map.Entry.comparingByKey()).map((e) -> {
+    //         return e.getKey().getName().trim() + "=" + e.getValue().trim();
+    //     }).collect(Collectors.joining("&")));
+    // }
 
     public List<AlarmLogTableType> getAlarmMessages() {
         return alarmMessages;
@@ -426,6 +422,18 @@ public class AlarmLogTableController {
 
     public void setClient(RestHighLevelClient client) {
         this.searchClient = client;
+    }
+
+    public void setSearchClauses(Collection<SearchClause> searchClauses) {
+        queryBuilderController.setSearchClauses(searchClauses);
+        query.setText(queryBuilderController.getQueryString());
+        search();
+    }
+
+    public void setQueryString(String queryString) {
+        query.setText(queryString);
+        queryBuilderController.setQueryString(queryString);
+        search();
     }
 
     /**
@@ -466,20 +474,30 @@ public class AlarmLogTableController {
     public void resize() {
         if (!moving.compareAndExchangeAcquire(false, true)) {
             if (resize.getText().equals(">")) {
+                queryBuilderController.setDisable(true);
+                query.setDisable(false);
+                query.setText(queryBuilderController.getQueryString());
+
                 Duration cycleDuration = Duration.millis(400);
-                KeyValue kv = new KeyValue(advancedSearchViewController.getPane().minWidthProperty(), 0);
-                KeyValue kv2 = new KeyValue(advancedSearchViewController.getPane().maxWidthProperty(), 0);
+                KeyValue kv = new KeyValue(queryBuilderController.getPane().minWidthProperty(), 0);
+                KeyValue kv2 = new KeyValue(queryBuilderController.getPane().maxWidthProperty(), 0);
                 Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv, kv2));
                 timeline.play();
                 timeline.setOnFinished(event -> {
                     resize.setText("<");
                     moving.set(false);
                 });
+
             } else {
+                queryBuilderController.setQueryString(query.getText());
+                queryBuilderController.setDisable(false);
+                query.setDisable(true);
+
                 Duration cycleDuration = Duration.millis(400);
                 double width = ViewSearchPane.getWidth() / 3;
-                KeyValue kv = new KeyValue(advancedSearchViewController.getPane().minWidthProperty(), width);
-                KeyValue kv2 = new KeyValue(advancedSearchViewController.getPane().prefWidthProperty(), width);
+                KeyValue kv = new KeyValue(queryBuilderController.getPane().minWidthProperty(), width);
+                KeyValue kv2 = new KeyValue(queryBuilderController.getPane().prefWidthProperty(), width);
+                queryBuilderController.getPane().setMaxWidth(Pane.USE_COMPUTED_SIZE);
                 Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv, kv2));
                 timeline.play();
                 timeline.setOnFinished(event -> {
@@ -492,14 +510,20 @@ public class AlarmLogTableController {
 
     @FXML
     void updateQuery() {
-        Arrays.asList(query.getText().split("&")).forEach(s -> {
-            String key = s.split("=")[0];
-            for (Map.Entry<Keys, String> entry : searchParameters.entrySet()) {
-                if (entry.getKey().getName().equals(key)) {
-                    searchParameters.put(entry.getKey(), s.split("=")[1]);
-                }
-            }
-        });
+        if (query.isDisabled()) {
+            query.setText(queryBuilderController.getQueryString());
+        }
+
+        setSearchString(query.getText());
+
+        // Arrays.asList(query.getText().split("&")).forEach(s -> {
+        //     String key = s.split("=")[0];
+        //     for (Map.Entry<Keys, String> entry : searchParameters.entrySet()) {
+        //         if (entry.getKey().getName().equals(key)) {
+        //             searchParameters.put(entry.getKey(), s.split("=")[1]);
+        //         }
+        //     }
+        // });
     }
 
     @FXML

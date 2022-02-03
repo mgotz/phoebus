@@ -17,7 +17,7 @@
 
 <SplitPane fx:id="topLevelNode" dividerPositions="0.6105960264900663" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minHeight="-Infinity" minWidth="-Infinity" prefHeight="623.0" prefWidth="757.0" xmlns="http://javafx.com/javafx/16" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.phoebus.applications.alarm.logging.ui.AlarmLogTableController">
      <items>
-         <fx:include fx:id="advancedSearchView" source="AdvancedSearchView.fxml" />
+         <fx:include fx:id="queryBuilder" source="QueryBuilder.fxml" />
          <GridPane fx:id="ViewSearchPane">
              <columnConstraints>
                  <ColumnConstraints />

@@ -2,17 +2,20 @@ package org.phoebus.applications.alarm.logging.ui;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
+import org.phoebus.applications.alarm.logging.ui.SearchClause.QueryNotSupported;
 import org.phoebus.framework.nls.NLS;
+import org.phoebus.framework.persistence.Memento;
 import org.phoebus.framework.spi.AppDescriptor;
 import org.phoebus.framework.spi.AppInstance;
 import org.phoebus.ui.docking.DockItem;
 import org.phoebus.ui.docking.DockPane;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.elasticsearch.client.RestHighLevelClient;
 
 import javafx.fxml.FXMLLoader;
@@ -24,6 +27,14 @@ public class AlarmLogTable implements AppInstance {
     private AlarmLogTableController controller;
 
     AlarmLogTable(final AlarmLogTableApp app) {
+        this(app, AlarmLogTableQueryUtil.defaultField + ": *");
+    }
+
+    AlarmLogTable(final AlarmLogTableApp app, URI resource) {
+        this(app, parseURI(resource));
+    }
+
+    AlarmLogTable(final AlarmLogTableApp app, String searchString) {
         this.app = app;
         try {
             ResourceBundle resourceBundle = NLS.getMessages(Messages.class);
@@ -33,12 +44,15 @@ public class AlarmLogTable implements AppInstance {
             loader.setControllerFactory(clazz -> {
                 try {
                     if(clazz.isAssignableFrom(AlarmLogTableController.class)){
-                        return clazz.getConstructor(RestHighLevelClient.class)
-                                .newInstance(app.getClient());
+                        return clazz.getConstructor(RestHighLevelClient.class, String.class)
+                                .newInstance(app.getClient(), searchString);
                     }
                     else if(clazz.isAssignableFrom(AdvancedSearchViewController.class)){
                         return clazz.getConstructor(RestHighLevelClient.class)
                                 .newInstance(app.getClient());
+                    }
+                    else {
+                        return clazz.getConstructor().newInstance();
                     }
                 } catch (Exception e) {
                     Logger.getLogger(AlarmLogTable.class.getName()).log(Level.SEVERE, "Failed to construct controller for Alarm Log Table View", e);
@@ -62,25 +76,81 @@ public class AlarmLogTable implements AppInstance {
     }
     
 
-    public void setPVResource(URI resource) {
-        String query = resource.getQuery();
-        // TODO URI parsing might be improved.
-        String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
-            return s.startsWith("pv");
-        }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
+    // public void setPVResource(URI resource) {
+    //     System.out.println(resource.toString());
+    //     String query = resource.getQuery();
+    //     // TODO URI parsing might be improved.
+    //     String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
+    //         return s.startsWith("pv");
+    //     }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
 
-        controller.setSearchString(parsedQuery);
-        controller.setIsNodeTable(false);
-    }
+    //     controller.setSearchString(parsedQuery);
+    //     controller.setIsNodeTable(false);
+    // }
     
-    public void setNodeResource(URI resource) {
-        String query = resource.getQuery();
-        // TODO URI parsing might be improved.
-        String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
-            return s.startsWith("node");
-        }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
+    // public void setNodeResource(URI resource) {
+    //     System.out.println(resource.toString());
+    //     String query = resource.getQuery();
+    //     // TODO URI parsing might be improved.
+    //     String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
+    //         return s.startsWith("node");
+    //     }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
 
-        controller.setSearchString(parsedQuery);
-        controller.setIsNodeTable(true);
+    //     controller.setSearchString(parsedQuery);
+    //     controller.setIsNodeTable(true);
+    // }
+
+    static String parseURI(URI resource) {
+        String luceneQueryString = "";
+        String startTime = "*";
+        String endTime = "*";
+        List<SearchClause> extraClauses = new ArrayList<SearchClause>();
+
+        for (String queryComponent : resource.getQuery().split("&")) {
+            var keyVal = queryComponent.split("=", 2);
+            final String key = keyVal.length > 1 ? keyVal[0] : "";
+            final String val = keyVal.length > 1 ? keyVal[1] : keyVal[0];
+
+            if (key.isEmpty()) {
+                if (luceneQueryString.isEmpty()) {
+                    luceneQueryString = val;
+                } else {
+                    AlarmLogTableApp.logger.warning("Only a single query_string is supported, ignoring: " + val);
+                }
+            } else if (key.equals("start")) {
+                startTime = val;
+            } else if (key.equals("end")) {
+                endTime = val;
+            } else if (AlarmLogTableQueryUtil.esFields.contains(key)) {
+                extraClauses.add(new SearchClause(SearchClause.Negation.IS, key, val));
+            } else {
+                AlarmLogTableApp.logger.fine("Ignoring unkown URI query key " + key);
+            }
+        }
+
+        if (!startTime.equals("*") || !endTime.equals("*")) {
+            extraClauses.add(new SearchClause(SearchClause.Negation.IS, "message_time", startTime, endTime, false));
+        }
+
+        final String extraQuery = SearchClause.listToQuery(extraClauses);
+
+        final String combinedQuery = extraQuery + " " + luceneQueryString;
+
+        return(combinedQuery);
     }
+
+    @Override
+    public void save(Memento memento) {
+        memento.setString("query_string", controller.query.getText());
+    }
+
+    @Override
+    public void restore(Memento memento) {
+        var queryString = memento.getString("query_string");
+
+        if (queryString.isPresent()) {
+            controller.setQueryString(queryString.get());
+        }
+    }
+
 }

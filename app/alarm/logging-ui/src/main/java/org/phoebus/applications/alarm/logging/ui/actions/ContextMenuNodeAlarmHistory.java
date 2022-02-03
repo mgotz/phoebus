@@ -43,9 +43,12 @@ public class ContextMenuNodeAlarmHistory implements ContextMenuEntry {
         selection.getSelections().stream().forEach(s -> {
             AdapterService.adapt(s, AlarmTreeItem.class).ifPresent(selectedNodes::add);
         });
-        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME);
-        URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "", "node="+selectedNodes.stream().map(AlarmTreeItem::getName).collect(Collectors.joining(",")), "");
-        table.setNodeResource(uri);
+
+        // construct uri query
+        URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "",
+            selectedNodes.stream().map(AlarmTreeItem::getPathName).collect(Collectors.joining("*&config=*","config=*","*")),
+             "");
+        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
     }
 
     @Override

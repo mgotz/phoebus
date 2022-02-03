@@ -1,6 +1,19 @@
 package org.phoebus.applications.alarm.logging.ui;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 public class AlarmLogTableQueryUtil {
+
+    static public Set<String> esFields = Stream.of(AlarmLogTableType.class.getDeclaredFields())
+        .filter(f -> !f.isAnnotationPresent(JsonIgnore.class))
+        .map(f -> f.getName())
+        .collect(Collectors.toSet());
+
+    static public String defaultField = "pv";
 
     // Ordered search keys
     public enum Keys {

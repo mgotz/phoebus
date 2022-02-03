@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<fx:root spacing="2.0" type="VBox" xmlns="http://javafx.com/javafx/16" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <TextField fx:id="fieldName_TF" />
+      <HBox alignment="CENTER_LEFT" spacing="5.0">
+         <children>
+            <Region minWidth="0.0" prefHeight="1.0" prefWidth="10.0" />
+            <ChoiceBox fx:id="occur_CB" maxWidth="-Infinity" minWidth="-Infinity" prefWidth="70.0" />
+            <ChoiceBox fx:id="matchType_CB" maxWidth="-Infinity" minWidth="-Infinity" prefWidth="85.0" />
+            <TextField fx:id="term1_TF" prefWidth="80.0" HBox.hgrow="ALWAYS" />
+            <Label fx:id="toLabel" text=" - " />
+            <TextField fx:id="term2_TF" minWidth="50.0" prefWidth="80.0" HBox.hgrow="ALWAYS" />
+            <CheckBox fx:id="wildcard_CHK" mnemonicParsing="false" text="Wildcards">
+               <tooltip>
+                  <Tooltip text="* and ? are wildcard characters, uncheck to search for strings with a literal * or ?" />
+               </tooltip>
+            </CheckBox>
+         </children>
+      </HBox>
+   </children>
+</fx:root>
