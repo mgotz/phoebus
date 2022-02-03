@@ -9,7 +9,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.phoebus.applications.alarm.logging.ui.Preferences;
 import org.phoebus.framework.spi.AppInstance;
 import org.phoebus.framework.spi.AppResourceDescriptor;
 import org.phoebus.ui.javafx.ImageCache;
@@ -23,7 +22,7 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
     public static final String DISPLAYNAME = "Alarm Log Table";
 
     public static final String SUPPORTED_SCHEMA = "alarmLog";
-    
+
     public static final Image icon = ImageCache.getImage(AlarmLogTableApp.class, "/icons/alarmtable.png");
 
     private RestHighLevelClient client;
@@ -53,7 +52,7 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
         AlarmLogTable alarmLogTable = new AlarmLogTable(this, resource);
         return alarmLogTable;
     }
-    
+
     @Override
     public boolean canOpenResource(String resource) {
         return URI.create(resource).getScheme().equals(SUPPORTED_SCHEMA);
@@ -87,7 +86,7 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
                 logger.log(Level.WARNING, "Failed to properly close the elastic rest client", e);
             }
         }
-        
+
     }
 
     public RestHighLevelClient getClient() {

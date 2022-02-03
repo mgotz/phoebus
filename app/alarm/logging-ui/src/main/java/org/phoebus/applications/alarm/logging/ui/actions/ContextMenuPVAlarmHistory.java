@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.phoebus.applications.alarm.logging.ui.AlarmLogTable;
 import org.phoebus.applications.alarm.logging.ui.AlarmLogTableApp;
 import org.phoebus.core.types.ProcessVariable;
 import org.phoebus.framework.adapter.AdapterService;
@@ -43,7 +42,7 @@ public class ContextMenuPVAlarmHistory implements ContextMenuEntry {
         });
         URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "",
             selectedPvs.stream().map(ProcessVariable::getName).collect(Collectors.joining("&pv=","pv=","")), "");
-        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
+        ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
     }
 
     @Override

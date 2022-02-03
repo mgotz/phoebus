@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.phoebus.applications.alarm.logging.ui.AlarmLogTable;
 import org.phoebus.applications.alarm.logging.ui.AlarmLogTableApp;
 import org.phoebus.applications.alarm.model.AlarmTreeItem;
 import org.phoebus.framework.adapter.AdapterService;
@@ -48,7 +47,7 @@ public class ContextMenuNodeAlarmHistory implements ContextMenuEntry {
         URI uri = new URI(AlarmLogTableApp.SUPPORTED_SCHEMA, "", "",
             selectedNodes.stream().map(AlarmTreeItem::getPathName).collect(Collectors.joining("*&config=*","config=*","*")),
              "");
-        AlarmLogTable table = ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
+        ApplicationService.createInstance(AlarmLogTableApp.NAME, uri);
     }
 
     @Override

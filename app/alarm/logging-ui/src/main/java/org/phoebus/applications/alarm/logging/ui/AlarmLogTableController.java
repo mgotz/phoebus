@@ -8,8 +8,6 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
-import javafx.collections.MapChangeListener;
-import javafx.collections.ObservableMap;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -27,14 +25,11 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.phoebus.applications.alarm.logging.ui.AlarmLogTableQueryUtil.Keys;
-import org.phoebus.applications.alarm.logging.ui.Preferences;
 import org.phoebus.applications.alarm.model.SeverityLevel;
 import org.phoebus.applications.alarm.ui.AlarmUI;
 import org.phoebus.framework.jobs.Job;
 import org.phoebus.ui.application.ContextMenuHelper;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
-import org.phoebus.util.time.TimeParser;
 import org.phoebus.util.time.TimestampFormats;
 
 import java.net.URI;
@@ -43,8 +38,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -98,12 +91,6 @@ public class AlarmLogTableController {
     TextField query;
     @FXML
     GridPane ViewSearchPane;
-    @FXML
-    TextField searchText;
-    @FXML
-    TextField startTime;
-    @FXML
-    TextField endTime;
     TableColumn<AlarmLogTableType, String> sortTableCol = null;
     SortType sortColType = null;
 
@@ -114,7 +101,7 @@ public class AlarmLogTableController {
 
     private Job alarmLogSearchJob;
     private RestHighLevelClient searchClient;
-    
+
     @FXML
     private ProgressIndicator progressIndicator;
     private SimpleBooleanProperty searchInProgress = new SimpleBooleanProperty(false);
@@ -383,28 +370,6 @@ public class AlarmLogTableController {
             searchStringOkay.set(false);
         }
     }
-
-    // public void setIsNodeTable(Boolean isNodeTable) {
-    //     this.isNodeTable = isNodeTable;
-    //     if (isNodeTable == false) {
-    //         searchParameters.put(Keys.PV, this.searchString);
-    //     } else {
-    //         searchParameters.put(Keys.PV, "*");
-    //     }
-    //     searchParameters.put(Keys.MESSAGE, "*");
-    //     searchParameters.put(Keys.SEVERITY, "*");
-    //     searchParameters.put(Keys.CURRENTSEVERITY, "*");
-    //     searchParameters.put(Keys.CURRENTMESSAGE, "*");
-    //     searchParameters.put(Keys.COMMAND, "*");
-    //     searchParameters.put(Keys.USER, "*");
-    //     searchParameters.put(Keys.HOST, "*");
-    //     searchParameters.put(Keys.STARTTIME, TimeParser.format(java.time.Duration.ofDays(7)));
-    //     searchParameters.put(Keys.ENDTIME, TimeParser.format(java.time.Duration.ZERO));
-
-    //     query.setText(searchParameters.entrySet().stream().sorted(Map.Entry.comparingByKey()).map((e) -> {
-    //         return e.getKey().getName().trim() + "=" + e.getValue().trim();
-    //     }).collect(Collectors.joining("&")));
-    // }
 
     public List<AlarmLogTableType> getAlarmMessages() {
         return alarmMessages;

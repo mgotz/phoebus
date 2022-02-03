@@ -1,10 +1,6 @@
 package org.phoebus.applications.alarm.logging.ui;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.phoebus.applications.alarm.logging.ui.SearchClause.QueryNotSupported;

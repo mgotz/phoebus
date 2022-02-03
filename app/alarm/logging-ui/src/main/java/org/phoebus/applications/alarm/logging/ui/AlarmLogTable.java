@@ -8,14 +8,12 @@ import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.phoebus.applications.alarm.logging.ui.SearchClause.QueryNotSupported;
 import org.phoebus.framework.nls.NLS;
 import org.phoebus.framework.persistence.Memento;
 import org.phoebus.framework.spi.AppDescriptor;
 import org.phoebus.framework.spi.AppInstance;
 import org.phoebus.ui.docking.DockItem;
 import org.phoebus.ui.docking.DockPane;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.elasticsearch.client.RestHighLevelClient;
 
 import javafx.fxml.FXMLLoader;
@@ -47,10 +45,6 @@ public class AlarmLogTable implements AppInstance {
                         return clazz.getConstructor(RestHighLevelClient.class, String.class)
                                 .newInstance(app.getClient(), searchString);
                     }
-                    else if(clazz.isAssignableFrom(AdvancedSearchViewController.class)){
-                        return clazz.getConstructor(RestHighLevelClient.class)
-                                .newInstance(app.getClient());
-                    }
                     else {
                         return clazz.getConstructor().newInstance();
                     }
@@ -74,31 +68,6 @@ public class AlarmLogTable implements AppInstance {
     public AppDescriptor getAppDescriptor() {
         return app;
     }
-    
-
-    // public void setPVResource(URI resource) {
-    //     System.out.println(resource.toString());
-    //     String query = resource.getQuery();
-    //     // TODO URI parsing might be improved.
-    //     String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
-    //         return s.startsWith("pv");
-    //     }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
-
-    //     controller.setSearchString(parsedQuery);
-    //     controller.setIsNodeTable(false);
-    // }
-    
-    // public void setNodeResource(URI resource) {
-    //     System.out.println(resource.toString());
-    //     String query = resource.getQuery();
-    //     // TODO URI parsing might be improved.
-    //     String parsedQuery = Arrays.asList(query.split("&")).stream().filter(s->{
-    //         return s.startsWith("node");
-    //     }).map(s->{return s.split("=")[1];}).collect(Collectors.joining(" "));
-
-    //     controller.setSearchString(parsedQuery);
-    //     controller.setIsNodeTable(true);
-    // }
 
     static String parseURI(URI resource) {
         String luceneQueryString = "";

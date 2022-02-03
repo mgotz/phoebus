@@ -3,7 +3,6 @@ package org.phoebus.applications.alarm.logging.ui;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.Period;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAmount;
@@ -13,13 +12,10 @@ import java.util.NoSuchElementException;
 
 import org.phoebus.ui.dialog.PopOver;
 import org.phoebus.ui.time.TimeRelativeIntervalPane;
-import org.phoebus.ui.time.TemporalAmountPane.Type;
 import org.phoebus.util.time.TimeParser;
 import org.phoebus.util.time.TimeRelativeInterval;
 import org.phoebus.util.time.TimestampFormats;
-import org.phoebus.util.time.TimeParser;
 
-import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
