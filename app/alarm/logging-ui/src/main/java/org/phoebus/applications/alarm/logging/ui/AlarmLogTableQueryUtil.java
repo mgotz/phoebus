@@ -8,15 +8,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class AlarmLogTableQueryUtil {
 
-    static public Set<String> esFields = Stream.of(AlarmLogTableType.class.getDeclaredFields())
+    static public Set<String> ES_FIELDS = Stream.of(AlarmLogTableType.class.getDeclaredFields())
         .filter(f -> !f.isAnnotationPresent(JsonIgnore.class))
         .map(f -> f.getName())
         .collect(Collectors.toSet());
 
-    static public String defaultField = "pv";
+    static public String DEFAULT_FIELD = "pv";
 
-    // Ordered search keys
-    public enum Keys {
+    static public enum FieldNames {
+        CONFIG("config"),
         PV("pv"),
         SEVERITY("severity"),
         MESSAGE("message"),
@@ -25,22 +25,36 @@ public class AlarmLogTableQueryUtil {
         USER("user"),
         HOST("host"),
         COMMAND("command"),
-        STARTTIME("start"),
-        ENDTIME("end");
+        MESSAGETIME("message_time"),
+        TIME("time");
 
         private final String name;
+        private final String prettyName;
+        private final boolean isTime;
 
-        Keys(String name) {
+
+        FieldNames(String name) {
+            this(name, name, false);
+        }
+
+        FieldNames(String name, String pretty, boolean isTime){
             this.name = name;
-        };
+            this.prettyName = pretty;
+            this.isTime = isTime;
+        }
+
+        public boolean isTime(){
+            return isTime;
+        }
 
         public String getName() {
-            return this.name;
+            return name;
         }
 
         @Override
         public String toString() {
-            return getName();
+            return prettyName;
         }
+
     }
 }

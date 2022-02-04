@@ -37,7 +37,9 @@ import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -91,16 +93,21 @@ public class AlarmLogTableController {
     TextField query;
     @FXML
     GridPane ViewSearchPane;
+    @FXML
+    Label errorLabel;
+    @FXML
+    SplitPane topLevelNode;
     TableColumn<AlarmLogTableType, String> sortTableCol = null;
     SortType sortColType = null;
 
     // The query_string for the elastic search query
-    private String searchString = AlarmLogTableQueryUtil.defaultField + ":*";
+    private String searchString = AlarmLogTableQueryUtil.DEFAULT_FIELD + ":*";
     // Result
     private List<AlarmLogTableType> alarmMessages;
 
     private Job alarmLogSearchJob;
     private RestHighLevelClient searchClient;
+    private double splitPosition = 0.3;
 
     @FXML
     private ProgressIndicator progressIndicator;
@@ -296,7 +303,7 @@ public class AlarmLogTableController {
         tableView.getColumns().add(hostCol);
         tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-        setColVisibility();
+        setHiddenCols(Set.of(Preferences.hidden_columns));
 
         query.setText(searchString);
 
@@ -310,63 +317,80 @@ public class AlarmLogTableController {
         });
 
 	    progressIndicator.visibleProperty().bind(searchInProgress);
-        searchInProgress.addListener((observable, oldValue, newValue) -> {
-            tableView.setDisable(newValue.booleanValue());
-        });
+
+        tableView.disableProperty().bind(searchInProgress.or(searchStringOkay.not()));
+
+        // searchInProgress.addListener((observable, oldValue, newValue) -> {
+        //     tableView.setDisable(newValue.booleanValue());
+        // });
 
         search.disableProperty().bind(searchInProgress);
+        errorLabel.visibleProperty().bind(searchStringOkay.not());
         search();
-        periodicSearch();
+    }
+
+    public void setHiddenCols(Set<String> hiddenCols) {
+        for(TableColumn<AlarmLogTableType, ?> col : tableView.getColumns()) {
+            if (hiddenCols.contains(col.getText())) {
+                col.setVisible(false);
+                logger.fine("hiding column " + col.getText());
+            } else {
+                col.setVisible(true);
+            }
+        }
+    }
+
+    public Collection<String> getHiddenCols(){
+        return tableView.getColumns().filtered(col -> !col.isVisible()).stream()
+            .map(col -> col.getText()).collect(Collectors.toList());
     }
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> runningTask;
 
-    private void setColVisibility() {
-        for(TableColumn<AlarmLogTableType, ?> col : tableView.getColumns().filtered(
-            col -> Arrays.asList(Preferences.hidden_columns).contains(col.getText()))) {
-            col.setVisible(false);
-            logger.fine("hiding column " + col.getText());
-        }
-    }
-
-    private void periodicSearch() {
+    private void startPeriodicSearch() {
         logger.info("Starting a periodic search for alarm messages : " + searchString);
         if (runningTask != null) {
             runningTask.cancel(true);
         }
-        runningTask = executor.scheduleAtFixedRate(() -> {
-            if (alarmLogSearchJob != null) {
-                alarmLogSearchJob.cancel();
-            }
-            sortTableCol = null;
-            sortColType = null;
-            if (!tableView.getSortOrder().isEmpty()) {
-                sortTableCol = (TableColumn) tableView.getSortOrder().get(0);
-                sortColType = sortTableCol.getSortType();
-            }
-            alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString,
-                    result -> Platform.runLater(() -> {
-                        setAlarmMessages(result);
-                        searchInProgress.set(false);
-                        }), (url, ex) -> {
-                        searchInProgress.set(false);
-                        logger.log(Level.WARNING, "Shutting down alarm log message scheduler.", ex);
-                        runningTask.cancel(true);
-                    });
-        }, 0, 10, TimeUnit.SECONDS);
+        if (searchStringOkay.get()) {
+            runningTask = executor.scheduleAtFixedRate(periodicSearch, 0, 10, TimeUnit.SECONDS);
+        } else {
+            searchInProgress.set(false);
+        }
     }
+
+    private Runnable periodicSearch = () -> {
+        if (alarmLogSearchJob != null) {
+            alarmLogSearchJob.cancel();
+        }
+        sortTableCol = null;
+        sortColType = null;
+        if (!tableView.getSortOrder().isEmpty()) {
+            sortTableCol = (TableColumn) tableView.getSortOrder().get(0);
+            sortColType = sortTableCol.getSortType();
+        }
+        alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString,
+                result -> Platform.runLater(() -> {
+                    setAlarmMessages(result);
+                    searchInProgress.set(false);
+                    }), (url, ex) -> {
+                    searchInProgress.set(false);
+                    logger.log(Level.WARNING, "Shutting down alarm log message scheduler.", ex);
+                    runningTask.cancel(true);
+                });
+    };
 
     public void setSearchString(String searchString) {
         try {
-            QueryParser luceneParser = new QueryParser(AlarmLogTableQueryUtil.defaultField, new KeywordAnalyzer());
+            QueryParser luceneParser = new QueryParser(AlarmLogTableQueryUtil.DEFAULT_FIELD, new KeywordAnalyzer());
             luceneParser.setAllowLeadingWildcard(true);
             luceneParser.parse(searchString);
             this.searchString = searchString;
             searchStringOkay.set(true);
         }
         catch (ParseException e) {
-            System.out.println("invalid query string: " + e.getMessage());
+            errorLabel.setText(Messages.InvalidQuery + "\n" + e.getMessage());
             searchStringOkay.set(false);
         }
     }
@@ -439,17 +463,19 @@ public class AlarmLogTableController {
     public void resize() {
         if (!moving.compareAndExchangeAcquire(false, true)) {
             if (resize.getText().equals(">")) {
-                queryBuilderController.setDisable(true);
                 query.setDisable(false);
                 query.setText(queryBuilderController.getQueryString());
 
                 Duration cycleDuration = Duration.millis(400);
-                KeyValue kv = new KeyValue(queryBuilderController.getPane().minWidthProperty(), 0);
-                KeyValue kv2 = new KeyValue(queryBuilderController.getPane().maxWidthProperty(), 0);
-                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv, kv2));
+                queryBuilderController.getPane().setMinWidth(0);
+                splitPosition = topLevelNode.getDividerPositions()[0];
+                KeyValue kv = new KeyValue(topLevelNode.getDividers().get(0).positionProperty(), 0);
+                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv));
                 timeline.play();
                 timeline.setOnFinished(event -> {
                     resize.setText("<");
+                    queryBuilderController.getPane().setMaxWidth(0);
+                    queryBuilderController.setDisable(true);
                     moving.set(false);
                 });
 
@@ -458,15 +484,14 @@ public class AlarmLogTableController {
                 queryBuilderController.setDisable(false);
                 query.setDisable(true);
 
-                Duration cycleDuration = Duration.millis(400);
-                double width = ViewSearchPane.getWidth() / 3;
-                KeyValue kv = new KeyValue(queryBuilderController.getPane().minWidthProperty(), width);
-                KeyValue kv2 = new KeyValue(queryBuilderController.getPane().prefWidthProperty(), width);
                 queryBuilderController.getPane().setMaxWidth(Pane.USE_COMPUTED_SIZE);
-                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv, kv2));
+                Duration cycleDuration = Duration.millis(400);
+                KeyValue kv = new KeyValue(topLevelNode.getDividers().get(0).positionProperty(), splitPosition);
+                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv));
                 timeline.play();
                 timeline.setOnFinished(event -> {
                     resize.setText(">");
+                    queryBuilderController.getPane().setMinWidth(Pane.USE_COMPUTED_SIZE);
                     moving.set(false);
                 });
             }
@@ -478,17 +503,10 @@ public class AlarmLogTableController {
         if (query.isDisabled()) {
             query.setText(queryBuilderController.getQueryString());
         }
-
+        if (query.getText().isBlank()) {
+            query.setText("*");
+        }
         setSearchString(query.getText());
-
-        // Arrays.asList(query.getText().split("&")).forEach(s -> {
-        //     String key = s.split("=")[0];
-        //     for (Map.Entry<Keys, String> entry : searchParameters.entrySet()) {
-        //         if (entry.getKey().getName().equals(key)) {
-        //             searchParameters.put(entry.getKey(), s.split("=")[1]);
-        //         }
-        //     }
-        // });
     }
 
     @FXML
@@ -496,6 +514,7 @@ public class AlarmLogTableController {
         searchInProgress.set(true);
         tableView.getSortOrder().clear();
         updateQuery();
+        startPeriodicSearch();
     }
 
     @FXML

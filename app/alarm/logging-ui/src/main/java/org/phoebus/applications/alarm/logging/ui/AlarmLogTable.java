@@ -5,8 +5,10 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import org.phoebus.framework.nls.NLS;
 import org.phoebus.framework.persistence.Memento;
@@ -25,7 +27,7 @@ public class AlarmLogTable implements AppInstance {
     private AlarmLogTableController controller;
 
     AlarmLogTable(final AlarmLogTableApp app) {
-        this(app, AlarmLogTableQueryUtil.defaultField + ": *");
+        this(app, AlarmLogTableQueryUtil.DEFAULT_FIELD + ": *");
     }
 
     AlarmLogTable(final AlarmLogTableApp app, URI resource) {
@@ -90,7 +92,7 @@ public class AlarmLogTable implements AppInstance {
                 startTime = val;
             } else if (key.equals("end")) {
                 endTime = val;
-            } else if (AlarmLogTableQueryUtil.esFields.contains(key)) {
+            } else if (AlarmLogTableQueryUtil.ES_FIELDS.contains(key)) {
                 extraClauses.add(new SearchClause(SearchClause.Negation.IS, key, val));
             } else {
                 AlarmLogTableApp.logger.fine("Ignoring unkown URI query key " + key);
@@ -111,14 +113,25 @@ public class AlarmLogTable implements AppInstance {
     @Override
     public void save(Memento memento) {
         memento.setString("query_string", controller.query.getText());
+        memento.setString("resize", controller.resize.getText());
+        memento.setString("hidden_cols", controller.getHiddenCols().stream().collect(Collectors.joining(",")));
     }
 
     @Override
     public void restore(Memento memento) {
         var queryString = memento.getString("query_string");
+        var resize = memento.getString("resize");
+        var hiddenCols = memento.getString("hidden_cols");
 
         if (queryString.isPresent()) {
             controller.setQueryString(queryString.get());
+        }
+        if (resize.isPresent()) {
+            controller.resize.setText(resize.get());
+            controller.resize();
+        }
+        if (hiddenCols.isPresent()){
+            controller.setHiddenCols(Set.of(hiddenCols.get().split(",")));
         }
     }
 

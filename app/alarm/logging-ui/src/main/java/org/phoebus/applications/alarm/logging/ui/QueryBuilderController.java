@@ -64,7 +64,7 @@ public class QueryBuilderController {
         queryEditable = false;
         queryString = query;
         try {
-            var clauseList = SearchClause.parseQueryString(query, AlarmLogTableQueryUtil.defaultField);
+            var clauseList = SearchClause.parseQueryString(query, AlarmLogTableQueryUtil.DEFAULT_FIELD);
             clausesView.getItems().clear();
             clausesView.getItems().addAll(clauseList);
             infoLabel.setVisible(false);
@@ -109,7 +109,7 @@ public class QueryBuilderController {
         // that are not marked as JsonIgnro.
         // This should contain all the fields in the json returned by
         // elastic search.
-        private SearchClauseController controller = new SearchClauseController(AlarmLogTableQueryUtil.esFields);
+        private SearchClauseController controller = new SearchClauseController(AlarmLogTableQueryUtil.ES_FIELDS);
         @Override
         public void updateItem(SearchClause item, boolean empty) {
             super.updateItem(item, empty);

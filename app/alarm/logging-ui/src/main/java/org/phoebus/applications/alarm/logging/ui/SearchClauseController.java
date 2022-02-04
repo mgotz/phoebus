@@ -192,13 +192,10 @@ public class SearchClauseController extends VBox {
     void setTimePaneStart() {
         Object startTime = TimeParser.parseInstantOrTemporalAmount(term1_TF.getText());
         if (startTime == null) {
-            System.out.println("start is null");
             timeSelectionPane.setStart(Duration.ofHours(8));
         } else if (startTime instanceof Instant) {
-            System.out.println("start is Instant: " + startTime.toString());
             timeSelectionPane.setStart((Instant) startTime);
         } else if (startTime instanceof TemporalAmount) {
-            System.out.println("start is amount: " + startTime.toString());
             timeSelectionPane.setStart((TemporalAmount) startTime);
         }
     }
@@ -235,20 +232,12 @@ public class SearchClauseController extends VBox {
                 clause.setTerm2("");
                 toLabel.setVisible(false);
                 term2_TF.setVisible(false);
-                // wildcard_CHK.setVisible(true);
-                break;
-            case RANGE:
-                if (term2_TF.getText().isEmpty()){
-                    term2_TF.textProperty().set("*");
-                }
-                toLabel.setVisible(true);
-                term2_TF.setVisible(true);
-                // wildcard_CHK.setVisible(false);
-                // wildcard_CHK.setSelected(true);
                 break;
             case DATERANGE:
                 term1_TF.focusedProperty().addListener(showPopover);
                 term2_TF.focusedProperty().addListener(showPopover);
+                // continue applying "regular" range changes
+            case RANGE:
                 if (term2_TF.getText().isEmpty()){
                     term2_TF.textProperty().set("*");
                 }

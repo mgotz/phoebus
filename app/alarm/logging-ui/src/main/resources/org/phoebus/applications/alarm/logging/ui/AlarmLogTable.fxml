@@ -76,6 +76,7 @@
                                  <Label text="%NoSearchResults" />
                              </placeholder>
                          </TableView>
+                  <Label fx:id="errorLabel" alignment="CENTER" contentDisplay="CENTER" text="Error" textAlignment="CENTER" textFill="#c90f0f" />
                      </children>
                  </StackPane>
             </children>

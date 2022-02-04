@@ -22,6 +22,8 @@ import org.phoebus.framework.nls.NLS;
 
 public class Messages {
 
+    public static String InvalidQuery;
+
     static
     {
         // initialize resource bundle
