@@ -2,8 +2,6 @@ package org.phoebus.applications.alarm.logging.ui;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.logging.Level;
@@ -14,16 +12,17 @@ import org.phoebus.framework.nls.NLS;
 import org.phoebus.framework.persistence.Memento;
 import org.phoebus.framework.spi.AppDescriptor;
 import org.phoebus.framework.spi.AppInstance;
-import org.phoebus.ui.docking.DockItem;
+import org.phoebus.ui.docking.DockItemWithInput;
 import org.phoebus.ui.docking.DockPane;
 import org.elasticsearch.client.RestHighLevelClient;
 
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 
 public class AlarmLogTable implements AppInstance {
 
     private final AlarmLogTableApp app;
-    private DockItem tab;
+    private DockItemWithInput tab;
     private AlarmLogTableController controller;
 
     AlarmLogTable(final AlarmLogTableApp app) {
@@ -31,7 +30,7 @@ public class AlarmLogTable implements AppInstance {
     }
 
     AlarmLogTable(final AlarmLogTableApp app, URI resource) {
-        this(app, parseURI(resource));
+        this(app, AlarmLogTableApp.parseUri(resource));
     }
 
     AlarmLogTable(final AlarmLogTableApp app, String searchString) {
@@ -55,10 +54,15 @@ public class AlarmLogTable implements AppInstance {
                 }
                 return null;
             });
-            tab = new DockItem(this, loader.load());
+            tab = new DockItemWithInput(this, loader.load(), AlarmLogTableApp.makeUri(searchString), null, null);
+            Platform.runLater(() -> {tab.setLabel(app.getDisplayName());});
             controller = loader.getController();
             tab.setOnClosed(event -> {
                 controller.shutdown();
+            });
+            controller.getQueryStringProperty().addListener((obs, oldVal, newVal) -> {
+                tab.setInput(AlarmLogTableApp.makeUri(newVal));
+                Platform.runLater(() -> {tab.setLabel(app.getDisplayName());});
             });
             DockPane.getActiveDockPane().addTab(tab);
         } catch (IOException e) {
@@ -71,68 +75,15 @@ public class AlarmLogTable implements AppInstance {
         return app;
     }
 
-    static String parseURI(URI resource) {
-        String luceneQueryString = "";
-        String startTime = "*";
-        String endTime = "*";
-        List<SearchClause> extraClauses = new ArrayList<SearchClause>();
-
-        for (String queryComponent : resource.getQuery().split("&")) {
-            var keyVal = queryComponent.split("=", 2);
-            final String key = keyVal.length > 1 ? keyVal[0] : "";
-            final String val = keyVal.length > 1 ? keyVal[1] : keyVal[0];
-
-            if (key.isEmpty()) {
-                if (luceneQueryString.isEmpty()) {
-                    luceneQueryString = val;
-                } else {
-                    AlarmLogTableApp.logger.warning("Only a single query_string is supported, ignoring: " + val);
-                }
-            } else if (key.equals("start")) {
-                startTime = val;
-            } else if (key.equals("end")) {
-                endTime = val;
-            } else if (AlarmLogTableQueryUtil.ES_FIELDS.contains(key)) {
-                extraClauses.add(new SearchClause(SearchClause.Negation.IS, key, val));
-            } else {
-                AlarmLogTableApp.logger.fine("Ignoring unkown URI query key " + key);
-            }
-        }
-
-        if (!startTime.equals("*") || !endTime.equals("*")) {
-            extraClauses.add(new SearchClause(SearchClause.Negation.IS, "message_time", startTime, endTime, false));
-        }
-
-        final String extraQuery = SearchClause.listToQuery(extraClauses);
-
-        final String combinedQuery = extraQuery + " " + luceneQueryString;
-
-        return(combinedQuery);
-    }
-
     @Override
     public void save(Memento memento) {
-        memento.setString("query_string", controller.query.getText());
-        memento.setString("resize", controller.resize.getText());
+        memento.setBoolean("query_builder_hidden", controller.getQueryBuilderHidden());
         memento.setString("hidden_cols", controller.getHiddenCols().stream().collect(Collectors.joining(",")));
     }
 
     @Override
     public void restore(Memento memento) {
-        var queryString = memento.getString("query_string");
-        var resize = memento.getString("resize");
-        var hiddenCols = memento.getString("hidden_cols");
-
-        if (queryString.isPresent()) {
-            controller.setQueryString(queryString.get());
-        }
-        if (resize.isPresent()) {
-            controller.resize.setText(resize.get());
-            controller.resize();
-        }
-        if (hiddenCols.isPresent()){
-            controller.setHiddenCols(Set.of(hiddenCols.get().split(",")));
-        }
+        memento.getBoolean("query_builder_hidden").ifPresent(hide -> controller.hideQueryBuilder(hide));
+        memento.getString("hidden_cols").ifPresent(cols -> controller.setHiddenCols(Set.of(cols.split(","))));;
     }
-
 }

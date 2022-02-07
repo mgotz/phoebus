@@ -4,8 +4,10 @@ import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.event.EventHandler;
@@ -90,7 +92,7 @@ public class AlarmLogTableController {
     @FXML
     Button search;
     @FXML
-    TextField query;
+    private TextField query;
     @FXML
     GridPane ViewSearchPane;
     @FXML
@@ -101,7 +103,7 @@ public class AlarmLogTableController {
     SortType sortColType = null;
 
     // The query_string for the elastic search query
-    private String searchString = AlarmLogTableQueryUtil.DEFAULT_FIELD + ":*";
+    private ReadOnlyStringWrapper searchString = new ReadOnlyStringWrapper(AlarmLogTableQueryUtil.DEFAULT_FIELD + ":*");
     // Result
     private List<AlarmLogTableType> alarmMessages;
 
@@ -122,6 +124,9 @@ public class AlarmLogTableController {
     @FXML
     public void initialize() {
         resize.setText("<");
+        topLevelNode.getDividers().get(0).setPosition(0);
+        queryBuilderController.setDisable(true);
+
         tableView.getColumns().clear();
         configCol = new TableColumn<>("Config");
         configCol.setCellValueFactory(
@@ -305,8 +310,6 @@ public class AlarmLogTableController {
 
         setHiddenCols(Set.of(Preferences.hidden_columns));
 
-        query.setText(searchString);
-
         query.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent keyEvent) {
@@ -317,16 +320,11 @@ public class AlarmLogTableController {
         });
 
 	    progressIndicator.visibleProperty().bind(searchInProgress);
-
-        tableView.disableProperty().bind(searchInProgress.or(searchStringOkay.not()));
-
-        // searchInProgress.addListener((observable, oldValue, newValue) -> {
-        //     tableView.setDisable(newValue.booleanValue());
-        // });
-
         search.disableProperty().bind(searchInProgress);
         errorLabel.visibleProperty().bind(searchStringOkay.not());
-        search();
+        tableView.disableProperty().bind(searchInProgress.or(searchStringOkay.not()));
+
+        setQueryString(searchString.get());
     }
 
     public void setHiddenCols(Set<String> hiddenCols) {
@@ -349,7 +347,7 @@ public class AlarmLogTableController {
     private ScheduledFuture<?> runningTask;
 
     private void startPeriodicSearch() {
-        logger.info("Starting a periodic search for alarm messages : " + searchString);
+        logger.info("Starting a periodic search for alarm messages : " + searchString.get());
         if (runningTask != null) {
             runningTask.cancel(true);
         }
@@ -370,7 +368,7 @@ public class AlarmLogTableController {
             sortTableCol = (TableColumn) tableView.getSortOrder().get(0);
             sortColType = sortTableCol.getSortType();
         }
-        alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString,
+        alarmLogSearchJob = AlarmLogSearchJob.submit(searchClient, searchString.get(),
                 result -> Platform.runLater(() -> {
                     setAlarmMessages(result);
                     searchInProgress.set(false);
@@ -381,12 +379,12 @@ public class AlarmLogTableController {
                 });
     };
 
-    public void setSearchString(String searchString) {
+    private void setSearchString(String searchString) {
         try {
             QueryParser luceneParser = new QueryParser(AlarmLogTableQueryUtil.DEFAULT_FIELD, new KeywordAnalyzer());
             luceneParser.setAllowLeadingWildcard(true);
             luceneParser.parse(searchString);
-            this.searchString = searchString;
+            this.searchString.set(searchString);
             searchStringOkay.set(true);
         }
         catch (ParseException e) {
@@ -413,16 +411,24 @@ public class AlarmLogTableController {
         this.searchClient = client;
     }
 
-    public void setSearchClauses(Collection<SearchClause> searchClauses) {
-        queryBuilderController.setSearchClauses(searchClauses);
-        query.setText(queryBuilderController.getQueryString());
-        search();
-    }
+    // public void setSearchClauses(Collection<SearchClause> searchClauses) {
+    //     queryBuilderController.setSearchClauses(searchClauses);
+    //     query.setText(queryBuilderController.getQueryString());
+    //     search();
+    // }
 
     public void setQueryString(String queryString) {
         query.setText(queryString);
         queryBuilderController.setQueryString(queryString);
         search();
+    }
+
+    public ReadOnlyStringProperty getQueryStringProperty(){
+        return searchString.getReadOnlyProperty();
+    }
+
+    public boolean getQueryBuilderHidden() {
+        return resize.getText().equals("<");
     }
 
     /**
@@ -456,47 +462,36 @@ public class AlarmLogTableController {
     }
 
     // Keeps track of when the animation is active. Multiple clicks will be ignored
-    // until a give resize action is completed
+    // until a given resize action is completed
     private AtomicBoolean moving = new AtomicBoolean(false);
 
-    @FXML
-    public void resize() {
+    public void hideQueryBuilder(boolean hide) {
         if (!moving.compareAndExchangeAcquire(false, true)) {
-            if (resize.getText().equals(">")) {
-                query.setDisable(false);
+            if (hide) {
                 query.setText(queryBuilderController.getQueryString());
-
-                Duration cycleDuration = Duration.millis(400);
-                queryBuilderController.getPane().setMinWidth(0);
-                splitPosition = topLevelNode.getDividerPositions()[0];
-                KeyValue kv = new KeyValue(topLevelNode.getDividers().get(0).positionProperty(), 0);
-                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv));
-                timeline.play();
-                timeline.setOnFinished(event -> {
-                    resize.setText("<");
-                    queryBuilderController.getPane().setMaxWidth(0);
-                    queryBuilderController.setDisable(true);
-                    moving.set(false);
-                });
-
+                splitPosition = topLevelNode.getDividerPositions()[0] > 0 ? topLevelNode.getDividerPositions()[0] : splitPosition;
             } else {
                 queryBuilderController.setQueryString(query.getText());
-                queryBuilderController.setDisable(false);
-                query.setDisable(true);
-
-                queryBuilderController.getPane().setMaxWidth(Pane.USE_COMPUTED_SIZE);
-                Duration cycleDuration = Duration.millis(400);
-                KeyValue kv = new KeyValue(topLevelNode.getDividers().get(0).positionProperty(), splitPosition);
-                Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv));
-                timeline.play();
-                timeline.setOnFinished(event -> {
-                    resize.setText(">");
-                    queryBuilderController.getPane().setMinWidth(Pane.USE_COMPUTED_SIZE);
-                    moving.set(false);
-                });
             }
+
+            Duration cycleDuration = Duration.millis(400);
+            KeyValue kv = new KeyValue(topLevelNode.getDividers().get(0).positionProperty(), hide ? 0 : splitPosition);
+            Timeline timeline = new Timeline(new KeyFrame(cycleDuration, kv));
+            timeline.setOnFinished(event -> {
+                resize.setText(hide ? "<" : ">");
+                query.setDisable(!hide);
+                queryBuilderController.setDisable(hide);
+                moving.set(false);
+            });
+            timeline.play();
         }
     }
+
+    @FXML
+    void resize() {
+        hideQueryBuilder(resize.getText().equals(">"));
+    }
+
 
     @FXML
     void updateQuery() {

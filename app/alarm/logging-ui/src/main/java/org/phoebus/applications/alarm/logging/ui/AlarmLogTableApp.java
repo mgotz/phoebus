@@ -2,8 +2,13 @@ package org.phoebus.applications.alarm.logging.ui;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
@@ -91,6 +96,63 @@ public class AlarmLogTableApp implements AppResourceDescriptor {
 
     public RestHighLevelClient getClient() {
         return client;
+    }
+
+
+    /**
+     * Build an alarmLog URI from the given (URL) query
+     * @param query
+     * @return URI
+     */
+    public static URI makeUri(String query) {
+        try {
+            return new URI(SUPPORTED_SCHEMA, "", "", query, "");
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Can't create URI for query: " +  query);
+        }
+    }
+
+    /**
+     * Parse the query part of the URI into a lucene query string
+     * @param resource URI to parse
+     * @return lucen/elasticsearch query_string
+     */
+    static String parseUri(URI resource) {
+        String luceneQueryString = "";
+        String startTime = "*";
+        String endTime = "*";
+        List<SearchClause> extraClauses = new ArrayList<SearchClause>();
+
+        for (String queryComponent : resource.getQuery().split("&")) {
+            var keyVal = queryComponent.split("=", 2);
+            final String key = keyVal.length > 1 ? keyVal[0] : "";
+            final String val = keyVal.length > 1 ? keyVal[1] : keyVal[0];
+
+            if (key.isEmpty()) {
+                if (luceneQueryString.isEmpty()) {
+                    luceneQueryString = val;
+                } else {
+                    logger.warning("Only a single query_string is supported, ignoring: " + val);
+                }
+            } else if (key.equals("start")) {
+                startTime = val;
+            } else if (key.equals("end")) {
+                endTime = val;
+            } else if (AlarmLogTableQueryUtil.ES_FIELDS.contains(key)) {
+                extraClauses.add(new SearchClause(SearchClause.Negation.IS, key, val));
+            } else {
+                logger.fine("Ignoring unkown URI query key " + key);
+            }
+        }
+
+        if (!startTime.equals("*") || !endTime.equals("*")) {
+            extraClauses.add(new SearchClause(SearchClause.Negation.IS, "message_time", startTime, endTime, false));
+        }
+
+        final String extraQuery = SearchClause.listToQuery(extraClauses);
+        final String separator = extraQuery.isBlank() || luceneQueryString.isBlank() ? "" : " ";
+        final String combinedQuery = extraQuery + separator + luceneQueryString;
+        return(combinedQuery);
     }
 
 }
