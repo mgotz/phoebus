@@ -18,7 +18,6 @@ import javafx.scene.control.TableColumn.SortType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.util.Callback;
 import javafx.util.Duration;
@@ -37,15 +36,14 @@ import org.phoebus.util.time.TimestampFormats;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -359,7 +357,7 @@ public class AlarmLogTableController {
     }
 
     private Runnable periodicSearch = () -> {
-        if (alarmLogSearchJob != null) {
+        if (alarmLogSearchJob != null && !alarmLogSearchJob.getMonitor().isDone()) {
             alarmLogSearchJob.cancel();
         }
         sortTableCol = null;
@@ -550,6 +548,33 @@ public class AlarmLogTableController {
 
         tableView.setContextMenu(contextMenu);
 
+    }
+
+    public Future<Boolean> closeOkay() {
+        if (runningTask != null) {
+            runningTask.cancel(true);
+            logger.fine("Periodic search scheduler for "+searchString.get() +" is done: " + runningTask.isDone());
+        }
+        return executor.submit(() -> {
+            if (alarmLogSearchJob != null && !alarmLogSearchJob.getMonitor().isDone()){
+                logger.fine("waiting on log search job: " + alarmLogSearchJob.getName());
+                for (int i = 0; i < 10; i++) {
+                    if (alarmLogSearchJob.getMonitor().isDone()){
+                        logger.fine(alarmLogSearchJob.getName() + " is done");
+                        return true;
+                    }
+                    try {
+                        Thread.sleep(200);
+                    }
+                    catch(InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        logger.severe("waiting interrupted");
+                    }
+                }
+                logger.severe("timeout for waiting on job expired, proceeding with hard shutdown");
+            }
+            return true;
+        });
     }
 
     public void shutdown() {

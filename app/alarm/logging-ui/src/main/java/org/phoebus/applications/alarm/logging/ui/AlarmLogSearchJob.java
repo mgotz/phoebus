@@ -79,9 +79,8 @@ public class AlarmLogSearchJob implements JobRunnable {
             luceneParser.parse(queryString);
         }
         catch (ParseException e) {
-            System.out.println("invalid query string: " + e.getMessage());
-            // errorHandler.accept("failed to search: invalid query string ", e);
-            // return;
+            errorHandler.accept("failed to search: invalid query string ", e);
+            return;
         }
 
         QueryBuilder query = QueryBuilders.queryStringQuery(queryString);

@@ -57,9 +57,8 @@ public class AlarmLogTable implements AppInstance {
             tab = new DockItemWithInput(this, loader.load(), AlarmLogTableApp.makeUri(searchString), null, null);
             Platform.runLater(() -> {tab.setLabel(app.getDisplayName());});
             controller = loader.getController();
-            tab.setOnClosed(event -> {
-                controller.shutdown();
-            });
+            tab.addCloseCheck(()->controller.closeOkay());
+            // tab.addClosedNotification(() -> {controller.shutdown();});
             controller.getQueryStringProperty().addListener((obs, oldVal, newVal) -> {
                 tab.setInput(AlarmLogTableApp.makeUri(newVal));
                 Platform.runLater(() -> {tab.setLabel(app.getDisplayName());});
