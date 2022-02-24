@@ -108,7 +108,8 @@ public class ResponsivenessMonitor
     private void reportUIFreeze()
     {
         final StringBuilder buf = new StringBuilder();
-        buf.append("UI Freezeup\n\n");
+        logger.log(Level.SEVERE, "UI Freezeup");
+        buf.append("UI Freezeup thread dump:\n\n");
         final ThreadInfo[] thread_infos = thread_bean.dumpAllThreads(dumpLockedMonitors, dumpLockedSynchronizers);
         for (ThreadInfo info : thread_infos)
         {
@@ -127,7 +128,7 @@ public class ResponsivenessMonitor
             buf.append(info);
         }
 
-        logger.log(Level.SEVERE, buf.toString());
+        logger.log(Level.FINE, buf.toString());
     }
 
     /** Called by UI thread */
