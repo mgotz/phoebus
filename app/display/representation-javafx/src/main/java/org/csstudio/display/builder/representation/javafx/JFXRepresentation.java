@@ -607,12 +607,16 @@ public class JFXRepresentation extends ToolkitRepresentation<Parent, Node>
     {
         root.getProperties().put(ACTIVE_MODEL, model);
 
-        // Add Nodes to the overall scene graph
-        super.representModel(root, model);
-
         // Alternatively, could first add nodes to an off-scene parent,
-        //   final Pane tmp_parent = new Pane();
-        //   super.representModel(root, model);
+        final Pane tmp_parent = new Pane();
+        super.representModel(tmp_parent, model);
+        final ObservableList<Node> children = tmp_parent.getChildren();
+
+        final Future<Void> added = this.submit(() -> {
+            JFXRepresentation.getChildren(root).addAll(children);
+            return null;
+        });
+        added.get();
         // and then add to the overall scene graph, to avoid parent/child
         // updates as each widget is represented.
         //   JFXRepresentation.getChildren(root).addAll(tmp_parent.getChildren());

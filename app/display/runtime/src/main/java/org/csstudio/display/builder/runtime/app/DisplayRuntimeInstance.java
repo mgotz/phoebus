@@ -107,7 +107,7 @@ public class DisplayRuntimeInstance implements AppInstance
     {
         this(app, null);
     }
-    
+
     DisplayRuntimeInstance(final AppDescriptor app, String prefTarget)
     {
         this.app = app;
@@ -293,8 +293,7 @@ public class DisplayRuntimeInstance implements AppInstance
             {
                 final DisplayModel model = loadModel(monitor, info);
 
-                final Future<Void> represented = representation.submit(() -> representModel(model));
-                represented.get();
+                representModel(model);
 
                 // Start runtime for the model
                 RuntimeUtil.startRuntime(model);
@@ -330,13 +329,13 @@ public class DisplayRuntimeInstance implements AppInstance
                         "Cannot load model from\n" + info.getPath() + exception_message, ex);
 
                 display_info = Optional.empty();
-                
+
                 if (dock_item.prepareToClose())
 	                Platform.runLater(() ->
 	                {
 	                    final Parent parent = representation.getModelParent();
 	                    JFXRepresentation.getChildren(parent).clear();
-	                    
+
 	                    close();
 	                });
                 return;
@@ -386,7 +385,11 @@ public class DisplayRuntimeInstance implements AppInstance
     private Void representModel(final DisplayModel model) throws Exception
     {
         final Parent parent = representation.getModelParent();
-        JFXRepresentation.getChildren(parent).clear();
+        final Future<Void> cleared = representation.submit(() -> {
+            JFXRepresentation.getChildren(parent).clear();
+            return null;
+        });
+        cleared.get();
         representation.representModel(parent, model);
         return null;
     }
