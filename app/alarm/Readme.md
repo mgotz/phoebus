@@ -404,6 +404,148 @@ it can lock the UI while the internal TreeView code gets to traverse all 'siblin
 This has been observed if there are 10000 or more siblings, i.e. direct child nodes to one node of the alarm tree.
 It can be avoided by for example adding sub-nodes.
 
+Encryption, Authentication and Authorization
+--------------------------------------------
+
+The default setup as described so far connects to Kafka without encryption nor authentication.
+While this may be acceptable for a closed control system network, you can enable encryption, 
+authentication and authorization.
+Kafka allows many authentication schemes, below outlines the setup for SSL encryption with 
+either two-way SSL authentication or user/password (a.k.a SASL PLAIN).
+
+### Prerequistes
+
+To enable SSL encryption at least the kafka server requires a SSL certificate.
+You can create your own self signed root CA to sign these certificates.
+Then add this rootCA to a truststore, create a certificate for the server, sign it
+and add it to a keystore.
+Confluent provides a good [step-by-step documentation](https://docs.confluent.io/platform/current/security/security_tutorial.html#creating-ssl-keys-and-certificates).
+Here is a short version. 
+
+Create the root CA
+```
+openssl req -new -x509 -keyout rootCAKey.pem -out rootCACert.pem -days 365
+```
+
+Add it to a truststore
+```
+keytool -keystore kafka.truststore.jks -alias CARoot -importcert -file rootCACert.pem
+```
+
+Create a certificate for the server (your name should be the FQDN) and export the certificate signing request:
+```
+keytool -keystore kafka.server.keystore.jks -alias localhost -keyalg RSA -genkey
+keytool -keystore kafka.server.keystore.jks -alias localhost -certreq -file server.csr
+```
+Sign the csr:
+```
+openssl x509 -req -CA rootCACert.pem -CAkey rootCAKey.pem -in server.csr -out serverCert.pem -days 365 -CAcreateserial
+```
+
+Import the signed certificate and the root CA into the keystore:
+```
+keytool -keystore kafka.server.keystore.jks -alias localhost -importcert -file serverCert.pem
+keytool -keystore kafka.server.keystore.jks -alias CARoot -importcert -file rootCACert.pem
+```
+
+If you want two-way SSL authentication repeat the certificate creation for the clients 
+so that you also have a `kafka.client.keystore.jks` file
+
+
+### Configure Kafka
+
+In `/opt/kafka/config/server.properties` add an SSL and/or SASL_SSL listener like:
+```
+listeners=PLAINTEXT://:9092,SSL://:9093,SASL_SSL://:9094
+```
+SSL will use SSL encryption and possibly two-way authentication (clients having their own certificates). 
+SASL_SSL will use SSL encryption and SASL authentication, which we will configure below for username/password.
+You may also remove the PLAINTEXT listner if you want to disallow unencrypted communication.
+
+In `/opt/kafka/config/server.properties` add the SSL configuration
+```
+# If you want the brokers to authenticate to each other with SASL, user SASL_SSL here
+security.inter.broker.protocol=SSL
+
+ssl.truststore.location=/opt/kafka/config/kafka.truststore.jks
+ssl.truststore.password=<truststore-pw>
+ssl.keystore.location=/opt/kafka/config/kafka.server.keystore.jks
+ssl.keystore.password=<server-keystore-pw>
+ssl.key.password=<ssl-key-pw>
+
+# uncomment if clients must provide certificates (two-way TLS)
+#ssl.client.auth=required
+
+# Below configures SASL authentication, remove if not needed
+sasl.enabled.mechanisms=PLAIN
+sasl.mechanism.inter.broker.protocol=PLAIN
+
+listener.name.sasl_ssl.plain.sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required \
+   username="admin" \
+   password="admin-secret" \
+   user_admin="admin-secret" \
+   user_kafkaclient1="kafkaclient1-secret";
+
+```
+
+### Configure CS-Studio UI, Alarm Server, Alarm Logger
+
+Create a `kafka.properties` file with the following content.
+For SSL:
+```
+security.protocol=SSL
+ssl.truststore.location=/opt/kafka/config/kafka.truststore.jks
+ssl.truststore.password=<truststore-pw>
+# Uncomment these for SSL-authentication (two-way TLS)
+#ssl.keystore.location=/opt/kafka/config/kafka.client.keystore.jks
+#ssl.keystore.password=<client-keystore-pw>
+#ssl.key.password=<ssl-key-pw>
+```
+
+For SSL with SASL:
+```
+sasl.mechanism=PLAIN
+security.protocol=SASL_SSL
+
+ssl.truststore.location=/opt/kafka/config/kafka.truststore.jks
+ssl.truststore.password=client
+
+sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required \
+  username="kafkaclient1" \
+  password="kafkaclient1-secret";
+```
+
+Adjust the port of the kafka server in your phoebus settings and preferably 
+use the FQDN instead of `localhost` for SSL connections. Otherwise certificate
+validation might fail.
+Edit the preferences to add
+```
+org.phoebus.applications.alarm/kafka_properties=kafka.properties
+```
+or pass it with `-kafka_properties kafka.properties` to the service.
+
+### Authorization
+
+With authenticated clients you could then enable authorization for fine grained control.
+In your kafka server add to `/opt/kafka/config/server.properties`:
+
+```
+# enable the authorizer
+authorizer.class.name=kafka.security.authorizer.AclAuthorizer
+# default to no restrictions
+allow.everyone.if.no.acl.found=true
+#set brokers as superusers
+super.users=User:broker.your-accelerator.org,User:admin
+```
+
+Then run for example
+```
+./kafka-acls.sh --bootstrap-server broker.your-accelerator.org:9093 --command-config ../config/client.properties --add --allow-principal User:* --operation read --topic Accelerator --topic AcceleratorCommand --topic AcceleratorTalk
+./kafka-acls.sh --bootstrap-server broker.your-accelerator.org:9093 --command-config ../config/client.properties --add --allow-principal User:special-client.your-accelerator.org --operation read --operation write --topic Accelerator --topic AcceleratorCommand --topic AcceleratorTalk
+```
+to allow anybody to see the active alarms, but only the special-client to acknowledge them and to change the configuration.
+The `../config/client.properties` must have credentails to authenticate the client as a super user. 
+So, admin or broker.your-accelerator.org in this case.
 
 
 Issues
